@@ -4,12 +4,13 @@ Python과 OpenCV를 이용해 **웹캠의 얼굴 감지 결과에 따라 영상 
 
 카메라 입력, 프레임 처리, Haar Cascade 얼굴 검출, 영상 전환, 다중 카메라 및 듀얼 모니터 출력 예제로 구성되어 있습니다.
 
-> 현재 코드는 Windows 환경과 특정 로컬 경로를 기준으로 작성되어 있습니다. 처음 사용하는 경우 반드시 [한국어 사용 매뉴얼](./MANUAL_KO.md)의 환경 설정 부분을 먼저 확인하세요.
+Windows용 기존 코드와 Raspberry Pi용 코드를 함께 제공합니다.
 
 ## 주요 기능
 
 ### `onecam.py`
 
+- Windows용
 - 웹캠 1대 입력
 - Haar Cascade 기반 얼굴 검출
 - 얼굴 검출 여부에 따라 `black.mp4` / `seoultech.mp4` 전환
@@ -18,12 +19,27 @@ Python과 OpenCV를 이용해 **웹캠의 얼굴 감지 결과에 따라 영상 
 
 ### `twocam(turn_videotocctv).py`
 
+- Windows용
 - 웹캠 2대 사용
 - 첫 번째 카메라를 얼굴 검출용으로 사용
 - 두 번째 카메라를 기본 CCTV 화면으로 사용
 - 얼굴 검출 시 `seoultech.mp4` 재생
 - 출력 영상을 좌우로 분할해 2개 OpenCV 창에 표시
 - `q` 키로 종료
+
+### Raspberry Pi 버전
+
+`raspberry/` 폴더에는 Raspberry Pi용 코드가 있습니다.
+
+기본 권장판인 `onecam_raspberry.py`는 **카메라 한 대만 있으면 실행**할 수 있습니다.
+
+- 일반 USB 웹캠 지원
+- Raspberry Pi Camera Module 지원(Picamera2)
+- Windows 전용 `CAP_DSHOW`, `ctypes.windll`, `C:\...` 경로를 사용하지 않음
+- 저장소의 `black.mp4`, `seoultech.mp4`를 상대경로로 자동 사용
+- OpenCV 내장 Haar Cascade 경로 자동 사용
+
+자세한 내용: [Raspberry Pi 사용 안내](./raspberry/README_RASPBERRY.md)
 
 ## 프로젝트 구조
 
@@ -35,10 +51,15 @@ camproject/
 ├── onecam.py
 ├── twocam(turn_videotocctv).py
 ├── black.mp4
-└── seoultech.mp4
+├── seoultech.mp4
+└── raspberry/
+    ├── README_RASPBERRY.md
+    ├── camera_sources.py
+    ├── onecam_raspberry.py
+    └── twocam_raspberry.py
 ```
 
-## 권장 환경
+## Windows 권장 환경
 
 - Windows 10 / 11
 - Python 3.x
@@ -56,7 +77,7 @@ cd camproject
 
 Git을 사용하지 않는 경우 GitHub의 **Code → Download ZIP**으로 받을 수 있습니다.
 
-## 설치
+## Windows 설치
 
 ```bash
 pip install -r requirements.txt
@@ -68,9 +89,9 @@ pip install -r requirements.txt
 pip install opencv-python
 ```
 
-## 실행 전 확인
+## Windows 실행 전 확인
 
-현재 소스에는 작성 당시 사용한 Windows 절대경로가 포함되어 있습니다.
+기존 Windows 소스에는 작성 당시 사용한 절대경로가 포함되어 있습니다.
 
 ```text
 C:\opencv\sources\data\haarcascades\haarcascade_frontalface_default.xml
@@ -89,7 +110,7 @@ cv2.VideoCapture(1)
 
 자세한 설치 방법과 문제 해결은 [MANUAL_KO.md](./MANUAL_KO.md)를 참고하세요.
 
-## 실행
+## Windows 실행
 
 ### 단일 카메라
 
@@ -110,6 +131,26 @@ python "twocam(turn_videotocctv).py"
 ```text
 q
 ```
+
+## Raspberry Pi 빠른 실행
+
+### USB 웹캠 한 대
+
+```bash
+sudo apt update
+sudo apt install -y python3-opencv
+python3 raspberry/onecam_raspberry.py --camera usb
+```
+
+### Raspberry Pi Camera Module 한 대
+
+```bash
+sudo apt update
+sudo apt install -y python3-opencv python3-picamera2
+python3 raspberry/onecam_raspberry.py --camera picamera
+```
+
+자세한 설정과 카메라 확인 방법은 [raspberry/README_RASPBERRY.md](./raspberry/README_RASPBERRY.md)를 참고하세요.
 
 ## 기본 처리 흐름
 
@@ -141,9 +182,8 @@ OpenCV 화면 출력
 
 ## 상세 매뉴얼
 
-설치, 코드 구조, 실행 과정 및 오류 해결은 다음 문서를 참고하세요.
-
-- [한국어 사용 매뉴얼](./MANUAL_KO.md)
+- [Windows 한국어 사용 매뉴얼](./MANUAL_KO.md)
+- [Raspberry Pi 사용 안내](./raspberry/README_RASPBERRY.md)
 
 ## 개발자
 
