@@ -1,98 +1,184 @@
-# 📹 Video to CCTV Converter
+# CamProject
 
-영상 파일을 CCTV 스타일로 변환하고 실시간 카메라 처리를 수행하는 Python 프로젝트입니다.
+Python과 OpenCV를 이용해 **웹캠의 얼굴 감지 결과에 따라 영상 또는 카메라 화면을 전환하고 출력하는 영상처리 실습 프로젝트**입니다.
 
-## 📋 프로젝트 개요
+대학 수업이나 OpenCV 입문 실습에서 카메라 입력, 프레임 처리, Haar Cascade 얼굴 검출, 영상 전환, 다중 카메라 및 듀얼 모니터 출력을 살펴보는 예제로 사용할 수 있습니다.
 
-| 항목 | 내용 |
-|------|------|
-| 목적 | 영상/카메라 실시간 처리 및 CCTV 스타일 변환 |
-| 언어 | Python |
-| 핵심 기술 | OpenCV |
+> 현재 코드는 Windows 환경과 특정 로컬 경로를 기준으로 작성되어 있습니다. 처음 사용하는 경우 반드시 [한국어 사용 매뉴얼](./MANUAL_KO.md)의 환경 설정 부분을 먼저 확인하세요.
 
-## 📂 프로젝트 구조
+## 주요 기능
 
-```
+### `onecam.py`
+
+- 웹캠 1대 입력
+- Haar Cascade 기반 얼굴 검출
+- 얼굴 검출 여부에 따라 `black.mp4` / `seoultech.mp4` 전환
+- `seoultech.mp4`의 재생 위치 보존
+- 현재 화면 해상도에 맞춘 전체화면 출력
+
+### `twocam(turn_videotocctv).py`
+
+- 웹캠 2대 사용
+- 첫 번째 카메라를 얼굴 검출용으로 사용
+- 두 번째 카메라를 기본 CCTV 화면으로 사용
+- 얼굴 검출 시 `seoultech.mp4` 재생
+- 출력 영상을 좌우로 분할해 2개 OpenCV 창에 표시
+- `q` 키로 종료
+
+## 프로젝트 구조
+
+```text
 camproject/
-├── onecam.py                    # 단일 카메라 처리
-├── twocam(turn_videotocctv).py  # 듀얼 카메라 + CCTV 변환
-├── black.mp4                    # 테스트 영상 1
-└── seoultech.mp4                # 테스트 영상 2 (서울과기대)
+├── README.md
+├── MANUAL_KO.md
+├── requirements.txt
+├── onecam.py
+├── twocam(turn_videotocctv).py
+├── black.mp4
+└── seoultech.mp4
 ```
 
-## 🛠️ 기술 스택
+## 권장 환경
 
-- **언어**: Python 3.x
-- **영상 처리**: OpenCV
-- **GUI**: OpenCV Window
+- Windows 10 / 11
+- Python 3.x
+- OpenCV (`opencv-python`)
+- `onecam.py`: 웹캠 1대
+- `twocam(turn_videotocctv).py`: 웹캠 2대 권장
+- 듀얼 카메라 예제의 전체 기능 확인 시 모니터 2대 권장
 
-## 🚀 실행 방법
+## 다운로드
 
-### 1. 필수 라이브러리 설치
+```bash
+git clone https://github.com/AIN108/camproject.git
+cd camproject
+```
+
+Git을 사용하지 않는 경우 GitHub의 **Code → Download ZIP**으로 받을 수 있습니다.
+
+## 설치
+
+```bash
+pip install -r requirements.txt
+```
+
+또는 직접 설치하려면:
 
 ```bash
 pip install opencv-python
 ```
 
-### 2. 단일 카메라 실행
+## 실행 전 확인
+
+현재 소스에는 작성 당시 사용한 Windows 절대경로가 포함되어 있습니다.
+
+```text
+C:\opencv\sources\data\haarcascades\haarcascade_frontalface_default.xml
+C:\onecam\black.mp4
+C:\onecam\seoultech.mp4
+```
+
+사용하는 PC의 파일 위치가 다르면 Python 소스의 해당 경로를 수정해야 합니다.
+
+카메라 번호 역시 PC마다 달라질 수 있습니다.
+
+```python
+cv2.VideoCapture(0)
+cv2.VideoCapture(1)
+```
+
+자세한 설치 방법과 문제 해결은 [MANUAL_KO.md](./MANUAL_KO.md)를 참고하세요.
+
+## 실행
+
+### 단일 카메라
 
 ```bash
 python onecam.py
 ```
 
-### 3. 듀얼 카메라 + CCTV 변환 실행
+`onecam.py`는 현재 특정 종료키를 지정하지 않았으며 OpenCV 창이 활성화된 상태에서 키 입력이 발생하면 종료됩니다.
+
+### 듀얼 카메라 / 듀얼 화면
 
 ```bash
 python "twocam(turn_videotocctv).py"
 ```
 
-## 🎯 주요 기능
+종료:
 
-### 단일 카메라 (onecam.py)
-- 웹캠 실시간 영상 캡처
-- 기본 영상 처리
-
-### 듀얼 카메라 + CCTV 변환 (twocam)
-- 두 개의 카메라 동시 처리
-- 영상 파일 → CCTV 스타일 변환
-- 타임스탬프 오버레이
-- 흑백/컬러 전환
-
-## 📸 CCTV 스타일 효과
-
-- 🕐 실시간 타임스탬프 표시
-- 📍 위치 정보 오버레이
-- 🎬 프레임 레이트 조절
-- 🖼️ 화면 분할 (듀얼 카메라)
-
-## 💡 활용 예시
-
-```python
-import cv2
-
-# 카메라 열기
-cap = cv2.VideoCapture(0)
-
-while True:
-    ret, frame = cap.read()
-    # CCTV 스타일 처리
-    cv2.imshow('CCTV', frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+```text
+q
 ```
 
-## ⌨️ 단축키
+## 기본 처리 흐름
 
-| 키 | 기능 |
-|----|------|
-| `q` | 종료 |
-| `s` | 스크린샷 저장 |
-| `r` | 녹화 시작/중지 |
+```text
+카메라 입력
+    ↓
+프레임 획득
+    ↓
+흑백 변환
+    ↓
+Haar Cascade 얼굴 검출
+    ↓
+얼굴 검출 여부 판단
+    ↓
+영상 / 카메라 화면 선택
+    ↓
+OpenCV 화면 출력
+```
 
-## 👨‍💻 개발자
+## 수업에서 살펴볼 OpenCV 기능
+
+- `cv2.VideoCapture()` — 카메라 또는 동영상 열기
+- `read()` — 프레임 읽기
+- `cv2.cvtColor()` — 색 공간 변환
+- `CascadeClassifier` — Haar Cascade 로드
+- `detectMultiScale()` — 얼굴 검출
+- `cv2.resize()` — 영상 크기 변경
+- `cv2.imshow()` — 영상 출력
+- `cv2.waitKey()` — 키보드 입력 처리
+- `release()` — 카메라/동영상 자원 해제
+
+## 교육 실습 예시
+
+1. 카메라 인덱스 `0`, `1`을 바꾸어 장치 선택 방식 확인
+2. `scaleFactor`, `minNeighbors`를 조정하여 얼굴 검출 결과 비교
+3. 얼굴 검출 영역 크기 변경
+4. 얼굴이 사라진 후 영상이 전환되는 시간 변경
+5. `seoultech.mp4`를 다른 영상으로 교체
+6. 좌우 분할을 상하 분할 방식으로 변경
+
+## 현재 버전의 주의사항
+
+이 저장소는 완성형 CCTV 제품이 아니라 **영상처리 및 인터랙티브 미디어 실습용 프로젝트**입니다.
+
+현재 버전에는 다음과 같은 제약이 있습니다.
+
+- Windows 절대경로 사용
+- Haar Cascade 경로 고정
+- 카메라 번호 직접 지정
+- 듀얼 모니터 해상도 직접 지정
+- 설정용 GUI 없음
+- Haar Cascade 방식 특성상 조명·각도 등에 따라 오검출 또는 미검출 가능
+
+## 개인정보 및 촬영 주의
+
+웹캠을 사용하는 교육 실습에서는 촬영 대상자에게 카메라 사용 사실을 알리고, 실제 촬영 자료를 저장하거나 외부에 공개할 경우 개인정보 및 초상권 관련 기준을 확인하세요.
+
+현재 실행 코드에는 웹캠 영상을 파일로 녹화·저장하는 기능이 구현되어 있지 않습니다.
+
+## 라이선스
+
+현재 저장소에는 별도의 `LICENSE` 파일이 없습니다. 외부 재배포, 수정본 공개 또는 다른 프로젝트에 포함하여 배포하려는 경우 저장소 소유자에게 이용 조건을 확인하세요.
+
+## 상세 매뉴얼
+
+설치, 코드 구조, 실행 과정, 오류 해결 및 수업용 실습 항목은 다음 문서를 참고하세요.
+
+- [한국어 사용 매뉴얼](./MANUAL_KO.md)
+
+## 개발자
 
 - GitHub: [@AIN108](https://github.com/AIN108)
-
