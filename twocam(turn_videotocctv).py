@@ -1,274 +1,121 @@
-'''
-import cv2
+from pathlib import Path
+import argparse
 import time
-import numpy as np
-import requests
 
-# 얼굴 인식을 위한 Haar Cascade 로드
-face_cascade = cv2.CascadeClassifier(r'C:\opencv\sources\data\haarcascades\haarcascade_frontalface_default.xml')
+import cv2
 
-# 비디오 파일과 두 개의 웹캠 초기화
-video = cv2.VideoCapture(r'C:\onecam\seoultech.mp4')
-webcam1 = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # 얼굴 인식을 위한 카메라1
-webcam2 = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # CCTV 피드를 위한 카메라2
+BASE_DIR = Path(__file__).resolve().parent
+SEOULTECH_VIDEO = BASE_DIR / "seoultech.mp4"
+CASCADE_PATH = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
 
-# 카메라가 제대로 열렸는지 확인
-if not webcam1.isOpened():
-    print("카메라1을 열 수 없습니다.")
-    exit()
-if not webcam2.isOpened():
-    print("카메라2를 열 수 없습니다.")
-    exit()
-if not video.isOpened():
-    print("비디오 파일을 열 수 없습니다.")
-    exit()
 
-# 윈도우 이름 정의
-window_name1 = 'Monitor1'
-window_name2 = 'Monitor2'
-
-# 윈도우 생성 및 전체 화면 설정
-cv2.namedWindow(window_name1, cv2.WINDOW_NORMAL)
-cv2.namedWindow(window_name2, cv2.WINDOW_NORMAL)
-
-# 전체 화면으로 설정
-cv2.setWindowProperty(window_name1, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-cv2.setWindowProperty(window_name2, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
-# 윈도우 위치 설정 (모니터 해상도에 맞게 조정 필요)
-# 예시: 두 모니터가 좌우로 배치되어 있고, 각 모니터의 해상도가 1920x1080인 경우
-MONITOR_WIDTH = 1080
-MONITOR_HEIGHT = 1920
-
-cv2.moveWindow(window_name1, 0, 0)
-cv2.moveWindow(window_name2, MONITOR_WIDTH, 0)
-
-video_playing = False
-last_detected_time = time.time()
-face_count = 0
-frame_count = 0
 def get_center_rectangle(frame, width=480, height=320):
-    """프레임의 중앙에서 지정된 너비와 높이의 사각형을 추출합니다."""
-    center_x, center_y = frame.shape[1] // 2, frame.shape[0] // 2
+    """프레임 중앙에서 얼굴 감지용 영역을 잘라냅니다."""
+    frame_h, frame_w = frame.shape[:2]
+    width = min(width, frame_w)
+    height = min(height, frame_h)
+    center_x, center_y = frame_w // 2, frame_h // 2
     half_width, half_height = width // 2, height // 2
-    return frame[center_y - half_height:center_y + half_height, center_x - half_width:center_x + half_width]
+    return frame[
+        center_y - half_height : center_y + half_height,
+        center_x - half_width : center_x + half_width,
+    ]
 
-def send_frames_to_server(frame1, frame2, face_count, video_playing):
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            _, img_encoded1 = cv2.imencode('.jpg', frame1)
-            _, img_encoded2 = cv2.imencode('.jpg', frame2)
-            response = requests.post(
-                'http://192.168.0.10:5000/update_frame',
-                files={
-                    'frame1': ('frame1.jpg', img_encoded1.tobytes(), 'image/jpeg'),
-                    'frame2': ('frame2.jpg', img_encoded2.tobytes(), 'image/jpeg')
-                },
-                data={
-                    'face_count': face_count,
-                    'video_playing': video_playing
-                },
-                timeout=1  # 1초 타임아웃 설정
+
+def split_frame(frame, monitor_width, monitor_height):
+    """하나의 영상을 두 모니터에 표시할 수 있도록 좌우 절반으로 나눕니다."""
+    resized = cv2.resize(frame, (monitor_width * 2, monitor_height))
+    return resized[:, :monitor_width], resized[:, monitor_width:]
+
+
+def open_camera(index):
+    camera = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    if not camera.isOpened():
+        raise RuntimeError(f"카메라 {index}를 열 수 없습니다.")
+    return camera
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="얼굴 감지 여부에 따라 홍보영상/CCTV 화면을 전환해 듀얼 모니터에 출력합니다."
+    )
+    parser.add_argument("--detect-camera", type=int, default=1, help="얼굴 감지용 카메라 번호")
+    parser.add_argument("--cctv-camera", type=int, default=0, help="CCTV 표시용 카메라 번호")
+    parser.add_argument("--monitor-width", type=int, default=1080, help="모니터 한 대의 가로 픽셀")
+    parser.add_argument("--monitor-height", type=int, default=1920, help="모니터 한 대의 세로 픽셀")
+    parser.add_argument("--hold-seconds", type=float, default=1.0, help="얼굴이 사라진 뒤 영상 유지 시간")
+    args = parser.parse_args()
+
+    face_cascade = cv2.CascadeClassifier(str(CASCADE_PATH))
+    if face_cascade.empty():
+        raise RuntimeError(f"Haar Cascade를 불러오지 못했습니다: {CASCADE_PATH}")
+
+    video = cv2.VideoCapture(str(SEOULTECH_VIDEO))
+    if not video.isOpened():
+        raise FileNotFoundError(f"영상 파일을 열 수 없습니다: {SEOULTECH_VIDEO}")
+
+    webcam_detect = open_camera(args.detect_camera)
+    webcam_cctv = open_camera(args.cctv_camera)
+
+    window_name1 = "Monitor1"
+    window_name2 = "Monitor2"
+    cv2.namedWindow(window_name1, cv2.WINDOW_NORMAL)
+    cv2.namedWindow(window_name2, cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty(window_name1, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.setWindowProperty(window_name2, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.moveWindow(window_name1, 0, 0)
+    cv2.moveWindow(window_name2, args.monitor_width, 0)
+
+    video_playing = False
+    last_detected_time = 0.0
+
+    try:
+        while True:
+            ok_detect, detect_frame = webcam_detect.read()
+            if not ok_detect or detect_frame is None:
+                print("얼굴 감지용 카메라 프레임을 읽을 수 없습니다.")
+                break
+
+            roi = get_center_rectangle(detect_frame)
+            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=2)
+
+            current_time = time.time()
+            if len(faces) > 0:
+                video_playing = True
+                last_detected_time = current_time
+            elif video_playing and current_time - last_detected_time > args.hold_seconds:
+                video_playing = False
+
+            if video_playing:
+                ok_video, display_frame = video.read()
+                if not ok_video or display_frame is None:
+                    video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    ok_video, display_frame = video.read()
+                    if not ok_video or display_frame is None:
+                        print("홍보영상 프레임을 읽을 수 없습니다.")
+                        break
+            else:
+                ok_cctv, display_frame = webcam_cctv.read()
+                if not ok_cctv or display_frame is None:
+                    print("CCTV 카메라 프레임을 읽을 수 없습니다.")
+                    break
+
+            left_half, right_half = split_frame(
+                display_frame, args.monitor_width, args.monitor_height
             )
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"서버 연결 오류 (시도 {attempt+1}/{max_retries}): {e}")
-            time.sleep(0.5)  # 재시도 전 잠시 대기
-    return None
+            cv2.imshow(window_name1, left_half)
+            cv2.imshow(window_name2, right_half)
 
-def split_frame(frame, monitor_width, monitor_height):
-    """프레임을 좌우로 절반씩 분할하여 두 개의 프레임을 반환합니다."""
-    height, width, _ = frame.shape
-    # 원하는 모니터 해상도에 맞게 프레임을 리사이즈
-    resized_frame = cv2.resize(frame, (monitor_width * 2, monitor_height))
-    half_width = monitor_width
-    left_half = resized_frame[:, :half_width]
-    right_half = resized_frame[:, half_width:]
-    return left_half, right_half
-
-while True:
-    # 카메라1에서 프레임 읽기 (얼굴 인식용)
-    ret1, frame1 = webcam1.read()
-    if not ret1:
-        print("카메라1에서 프레임을 읽을 수 없습니다.")
-        break
-
-    # 얼굴 인식을 위한 중앙 사각형 추출
-    center_rectangle = get_center_rectangle(frame1, width=480, height=320)
-    frame_gray = cv2.cvtColor(center_rectangle, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(frame_gray, scaleFactor=1.1, minNeighbors=3)
-    face_count = len(faces)
-
-    if face_count > 0:
-        video_playing = True
-        last_detected_time = time.time()
-    elif time.time() - last_detected_time > 2:
-        video_playing = False
-
-    # 표시할 프레임 결정
-    if video_playing:
-        ret_video, video_frame = video.read()
-        if not ret_video:
-            video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret_video, video_frame = video.read()
-        display_frame = video_frame
-    else:
-        # 카메라2에서 프레임 읽기 (CCTV 피드용)
-        ret2, frame2 = webcam2.read()
-        if not ret2:
-            print("카메라2에서 프레임을 읽을 수 없습니다.")
-            break
-        display_frame = frame2
-
-    # 프레임을 모니터 해상도에 맞게 분할
-    left_half, right_half = split_frame(display_frame, MONITOR_WIDTH, MONITOR_HEIGHT)
-
-    # 두 개의 윈도우에 분할된 프레임 표시
-    cv2.imshow(window_name1, left_half)
-    cv2.imshow(window_name2, right_half)
-
-    # 10프레임마다 서버에 전송
-    if frame_count % 10 == 0:
-        #서버로 보낼 프레임은 카메라1과 카메라2의 최신 프레임을 사용
-        # 비디오가 재생 중일 때는 비디오 프레임을, 아닐 때는 카메라2의 프레임을 전송
-        if video_playing:
-            server_frame2 = video_frame
-        else:
-            server_frame2 = frame2
-        send_frames_to_server(frame1, server_frame2, face_count, video_playing)
-    frame_count += 1
-
-    # 종료 조건: 'q' 키 입력 시 종료
-    key = cv2.waitKey(1)
-    if key == ord('q'):
-        break
-
-# 자원 해제
-video.release()
-webcam1.release()
-webcam2.release()
-cv2.destroyAllWindows()
-'''
-
-import cv2
-import time
-import numpy as np
-
-# 얼굴 인식을 위한 Haar Cascade 로드
-face_cascade = cv2.CascadeClassifier(r'C:\opencv\sources\data\haarcascades\haarcascade_frontalface_default.xml')
-
-# 비디오 파일과 두 개의 웹캠 초기화
-video = cv2.VideoCapture(r'C:\onecam\seoultech.mp4')
-webcam1 = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # 얼굴 인식을 위한 카메라1
-webcam2 = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # CCTV 피드를 위한 카메라2
-
-# 카메라가 제대로 열렸는지 확인
-if not webcam1.isOpened():
-    print("카메라1을 열 수 없습니다.")
-    exit()
-if not webcam2.isOpened():
-    print("카메라2를 열 수 없습니다.")
-    exit()
-if not video.isOpened():
-    print("비디오 파일을 열 수 없습니다.")
-    exit()
-
-# 윈도우 이름 정의
-window_name1 = 'Monitor1'
-window_name2 = 'Monitor2'
-
-# 윈도우 생성 및 전체 화면 설정
-cv2.namedWindow(window_name1, cv2.WINDOW_NORMAL)
-cv2.namedWindow(window_name2, cv2.WINDOW_NORMAL)
-
-# 전체 화면으로 설정
-cv2.setWindowProperty(window_name1, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-cv2.setWindowProperty(window_name2, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
-# 윈도우 위치 설정 (모니터 해상도에 맞게 조정 필요)
-MONITOR_WIDTH = 1080
-MONITOR_HEIGHT = 1920
-
-cv2.moveWindow(window_name1, 0, 0)
-cv2.moveWindow(window_name2, MONITOR_WIDTH, 0)
-
-video_playing = False
-last_detected_time = time.time()
-face_count = 0
-frame_count = 0
-
-def get_center_rectangle(frame, width=720, height=640):
-    """프레임의 중앙에서 지정된 너비와 높이의 사각형을 추출합니다."""
-    center_x, center_y = frame.shape[1] // 2, frame.shape[0] // 2
-    half_width, half_height = width // 2, height // 2
-    return frame[center_y - half_height:center_y + half_height, center_x - half_width:center_x + half_width]
-
-def split_frame(frame, monitor_width, monitor_height):
-    resized_frame = cv2.resize(frame, (monitor_width * 2, monitor_height))
-    half_width = monitor_width
-    left_half = resized_frame[:, :half_width]
-    right_half = resized_frame[:, half_width:]
-    return left_half, right_half
-
-while True:
-    # 카메라1에서 프레임 읽기 (얼굴 인식용)
-    ret1, frame1 = webcam1.read()
-    if not ret1:
-        print("카메라1에서 프레임을 읽을 수 없습니다.")
-        break
-
-    # 얼굴 인식을 위한 중앙 사각형 추출
-    center_rectangle = get_center_rectangle(frame1, width=480, height=320)
-    frame_gray = cv2.cvtColor(center_rectangle, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(frame_gray, scaleFactor=1.2, minNeighbors=2)
-    face_count = len(faces)
-
-    # 사람 감지 여부에 따른 전환 속도 개선
-    current_time = time.time()
-    if face_count > 0:
-        if not video_playing or current_time - last_detected_time > 0.5:
-            video_playing = True
-            last_detected_time = current_time
-    elif current_time - last_detected_time > 1:
-        if video_playing:
-            video_playing = False
-
-    # 표시할 프레임 결정
-    if video_playing:
-        ret_video, video_frame = video.read()
-        if not ret_video:
-            video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret_video, video_frame = video.read()
-        display_frame = video_frame
-    else:
-        # 카메라2에서 프레임 읽기 (CCTV 피드용)
-        ret2, frame2 = webcam2.read()
-        if not ret2:
-            print("카메라2에서 프레임을 읽을 수 없습니다.")
-            break
-        display_frame = frame2
-
-    # 프레임을 모니터 해상도에 맞게 분할
-    left_half, right_half = split_frame(display_frame, MONITOR_WIDTH, MONITOR_HEIGHT)
-
-    # 두 개의 윈도우에 분할된 프레임 표시
-    cv2.imshow(window_name1, left_half)
-    cv2.imshow(window_name2, right_half)
-
-    frame_count += 1
-
-    # 종료 조건: 'q' 키 입력 시 종료
-    key = cv2.waitKey(1)
-    if key == ord('q'):
-        break
-
-# 자원 해제
-video.release()
-webcam1.release()
-webcam2.release()
-cv2.destroyAllWindows()
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):
+                break
+    finally:
+        video.release()
+        webcam_detect.release()
+        webcam_cctv.release()
+        cv2.destroyAllWindows()
 
 
-
-
+if __name__ == "__main__":
+    main()
