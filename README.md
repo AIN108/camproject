@@ -1,52 +1,17 @@
 # CamProject
 
-Python과 OpenCV를 이용해 **웹캠의 얼굴 감지 결과에 따라 영상 또는 카메라 화면을 전환하고 출력하는 영상처리 프로젝트**입니다.
+Python과 OpenCV를 이용해 **웹캠의 얼굴 감지 결과에 따라 영상 또는 카메라 화면을 전환하는 영상처리 프로젝트**입니다.
 
-카메라 입력, 프레임 처리, Haar Cascade 얼굴 검출, 영상 전환, 다중 카메라 및 듀얼 모니터 출력 예제로 구성되어 있습니다.
+Windows용 초기 구현과 Raspberry Pi용 구현을 함께 보존하면서, 현재 기본 실행 코드는 특정 PC의 절대경로 없이 저장소 자체에서 실행할 수 있도록 정리했습니다.
 
-Windows용 기존 코드와 Raspberry Pi용 코드를 함께 제공합니다.
-
-## 주요 기능
-
-### `onecam.py`
-
-- Windows용
-- 웹캠 1대 입력
-- Haar Cascade 기반 얼굴 검출
-- 얼굴 검출 여부에 따라 `black.mp4` / `seoultech.mp4` 전환
-- `seoultech.mp4`의 재생 위치 보존
-- 현재 화면 해상도에 맞춘 전체화면 출력
-
-### `twocam(turn_videotocctv).py`
-
-- Windows용
-- 웹캠 2대 사용
-- 첫 번째 카메라를 얼굴 검출용으로 사용
-- 두 번째 카메라를 기본 CCTV 화면으로 사용
-- 얼굴 검출 시 `seoultech.mp4` 재생
-- 출력 영상을 좌우로 분할해 2개 OpenCV 창에 표시
-- `q` 키로 종료
-
-### Raspberry Pi 버전
-
-`raspberry/` 폴더에는 Raspberry Pi용 코드가 있습니다.
-
-기본 권장판인 `onecam_raspberry.py`는 **카메라 한 대만 있으면 실행**할 수 있습니다.
-
-- 일반 USB 웹캠 지원
-- Raspberry Pi Camera Module 지원(Picamera2)
-- Windows 전용 `CAP_DSHOW`, `ctypes.windll`, `C:\...` 경로를 사용하지 않음
-- 저장소의 `black.mp4`, `seoultech.mp4`를 상대경로로 자동 사용
-- OpenCV 내장 Haar Cascade 경로 자동 사용
-
-자세한 내용: [Raspberry Pi 사용 안내](./raspberry/README_RASPBERRY.md)
-
-## 프로젝트 구조
+## 주요 구성
 
 ```text
 camproject/
 ├── README.md
 ├── MANUAL_KO.md
+├── ASSET_NOTICE.md
+├── LICENSE
 ├── requirements.txt
 ├── onecam.py
 ├── twocam(turn_videotocctv).py
@@ -59,82 +24,73 @@ camproject/
     └── twocam_raspberry.py
 ```
 
-## Windows 권장 환경
+## 처리 구조
 
-- Windows 10 / 11
-- Python 3.x
-- OpenCV (`opencv-python`)
-- `onecam.py`: 웹캠 1대
-- `twocam(turn_videotocctv).py`: 웹캠 2대 권장
-- 듀얼 카메라 예제의 전체 기능 확인 시 모니터 2대 권장
-
-## 다운로드
-
-```bash
-git clone https://github.com/AIN108/camproject.git
-cd camproject
+```text
+카메라 입력
+    ↓
+OpenCV Haar Cascade 얼굴 검출
+    ↓
+얼굴 감지 여부 판단
+    ↓
+홍보영상 / 검은 화면 / CCTV 카메라 전환
+    ↓
+OpenCV 전체화면 출력
 ```
 
-Git을 사용하지 않는 경우 GitHub의 **Code → Download ZIP**으로 받을 수 있습니다.
+## Windows: `onecam.py`
 
-## Windows 설치
+웹캠 한 대에서 얼굴을 감지하고, 얼굴 감지 여부에 따라 `black.mp4`와 `seoultech.mp4`를 전환합니다.
+
+현재 코드는 다음과 같이 정리되어 있습니다.
+
+- OpenCV 패키지에 포함된 Haar Cascade 자동 사용
+- `black.mp4`, `seoultech.mp4`를 저장소 기준 상대경로로 자동 탐색
+- 특정 PC의 `C:\\opencv`, `C:\\onecam` 경로 불필요
+- 웹캠 프레임 읽기 실패 및 영상 파일 누락 처리
+- `q` 또는 `Esc`로 종료
+
+실행:
 
 ```bash
 pip install -r requirements.txt
-```
-
-또는 직접 설치하려면:
-
-```bash
-pip install opencv-python
-```
-
-## Windows 실행 전 확인
-
-기존 Windows 소스에는 작성 당시 사용한 절대경로가 포함되어 있습니다.
-
-```text
-C:\opencv\sources\data\haarcascades\haarcascade_frontalface_default.xml
-C:\onecam\black.mp4
-C:\onecam\seoultech.mp4
-```
-
-사용하는 PC의 파일 위치가 다르면 Python 소스의 해당 경로를 수정해야 합니다.
-
-카메라 번호 역시 PC마다 달라질 수 있습니다.
-
-```python
-cv2.VideoCapture(0)
-cv2.VideoCapture(1)
-```
-
-자세한 설치 방법과 문제 해결은 [MANUAL_KO.md](./MANUAL_KO.md)를 참고하세요.
-
-## Windows 실행
-
-### 단일 카메라
-
-```bash
 python onecam.py
 ```
 
-`onecam.py`는 현재 특정 종료키를 지정하지 않았으며 OpenCV 창이 활성화된 상태에서 키 입력이 발생하면 종료됩니다.
+## Windows: 듀얼 카메라 / 듀얼 화면
 
-### 듀얼 카메라 / 듀얼 화면
+`twocam(turn_videotocctv).py`는 카메라 두 대를 사용합니다.
+
+- 얼굴 감지용 카메라
+- 기본 CCTV 화면용 카메라
+- 얼굴 감지 시 `seoultech.mp4` 표시
+- 얼굴이 사라지면 CCTV 화면으로 복귀
+- 하나의 출력 프레임을 좌우로 나누어 두 개의 OpenCV 창에 표시
+
+기본 실행:
 
 ```bash
 python "twocam(turn_videotocctv).py"
 ```
 
-종료:
+카메라 번호와 모니터 크기는 실행 시 바꿀 수 있습니다.
 
-```text
-q
+```bash
+python "twocam(turn_videotocctv).py" \
+  --detect-camera 1 \
+  --cctv-camera 0 \
+  --monitor-width 1080 \
+  --monitor-height 1920 \
+  --hold-seconds 1.0
 ```
 
-## Raspberry Pi 빠른 실행
+종료는 `q` 또는 `Esc`입니다.
 
-### USB 웹캠 한 대
+## Raspberry Pi
+
+`raspberry/` 폴더에는 Raspberry Pi용으로 경로·카메라 입력을 분리한 코드가 있습니다.
+
+### USB 웹캠
 
 ```bash
 sudo apt update
@@ -142,7 +98,7 @@ sudo apt install -y python3-opencv
 python3 raspberry/onecam_raspberry.py --camera usb
 ```
 
-### Raspberry Pi Camera Module 한 대
+### Raspberry Pi Camera Module
 
 ```bash
 sudo apt update
@@ -150,41 +106,31 @@ sudo apt install -y python3-opencv python3-picamera2
 python3 raspberry/onecam_raspberry.py --camera picamera
 ```
 
-자세한 설정과 카메라 확인 방법은 [raspberry/README_RASPBERRY.md](./raspberry/README_RASPBERRY.md)를 참고하세요.
+자세한 내용은 [`raspberry/README_RASPBERRY.md`](./raspberry/README_RASPBERRY.md)를 참고하세요.
 
-## 기본 처리 흐름
+## 미디어 자산
 
-```text
-카메라 입력
-    ↓
-프레임 획득
-    ↓
-흑백 변환
-    ↓
-Haar Cascade 얼굴 검출
-    ↓
-얼굴 검출 여부 판단
-    ↓
-영상 / 카메라 화면 선택
-    ↓
-OpenCV 화면 출력
-```
+이 프로젝트에는 실행 재현을 위해 `black.mp4`와 `seoultech.mp4`가 남아 있습니다.
 
-## 개인정보 및 촬영 주의
+- `black.mp4`: 화면 전환용 검은 화면 테스트 영상으로 사용했던 것으로 추정
+- `seoultech.mp4`: 서울과학기술대학교 재학 당시 프로젝트에서 사용한 학교 홍보영상으로 추정
 
-웹캠을 사용하는 경우 촬영 대상자에게 카메라 사용 사실을 알리고, 실제 촬영 자료를 저장하거나 외부에 공개할 경우 개인정보 및 초상권 관련 기준을 확인하세요.
+후자의 원본 URL과 재배포 조건은 현재 저장소 기록만으로 확인되지 않습니다. 따라서 소스 코드의 MIT License가 해당 영상에 적용되는 것으로 간주하지 않습니다.
 
-현재 실행 코드에는 웹캠 영상을 파일로 녹화·저장하는 기능이 구현되어 있지 않습니다.
+자세한 내용은 [`ASSET_NOTICE.md`](./ASSET_NOTICE.md)를 참고하세요.
 
-## 라이선스
+## 개인정보 및 촬영
 
-현재 저장소에는 별도의 `LICENSE` 파일이 없습니다. 외부 재배포, 수정본 공개 또는 다른 프로젝트에 포함하여 배포하려는 경우 저장소 소유자에게 이용 조건을 확인하세요.
+웹캠을 실제 환경에서 사용할 때는 촬영 대상자에게 카메라 사용 사실을 알리고, 영상 저장·전송 기능을 추가하는 경우 개인정보와 초상권 관련 기준을 별도로 확인해야 합니다.
 
-## 상세 매뉴얼
+현재 기본 실행 코드는 웹캠 영상을 파일로 녹화하는 기능을 포함하지 않습니다.
 
-- [Windows 한국어 사용 매뉴얼](./MANUAL_KO.md)
-- [Raspberry Pi 사용 안내](./raspberry/README_RASPBERRY.md)
+## 문서
 
-## 개발자
+- [`MANUAL_KO.md`](./MANUAL_KO.md): 기존 Windows 사용 매뉴얼
+- [`raspberry/README_RASPBERRY.md`](./raspberry/README_RASPBERRY.md): Raspberry Pi 사용 안내
+- [`ASSET_NOTICE.md`](./ASSET_NOTICE.md): 포함된 영상 자산의 출처/권리 구분
 
-- GitHub: [@AIN108](https://github.com/AIN108)
+## License
+
+AIN108이 작성한 소스 코드는 MIT License로 공개합니다. 제3자 미디어 자산은 별도 권리가 적용될 수 있습니다.
