@@ -134,3 +134,7 @@ python3 raspberry/onecam_raspberry.py --camera picamera
 ## License
 
 AIN108이 작성한 소스 코드는 MIT License로 공개합니다. 제3자 미디어 자산은 별도 권리가 적용될 수 있습니다.
+
+## 포트폴리오
+
+- Notion 프로젝트: https://app.notion.com/p/2c5f6964be6180dfb232dddd08268c5e
