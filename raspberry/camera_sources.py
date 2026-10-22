@@ -60,12 +60,18 @@ class PiCamera:
 
         self._camera = Picamera2(self.index)
         frame_duration_us = max(1, round(1_000_000 / max(1, self.fps)))
-        config = self._camera.create_preview_configuration(
-            main={"size": (self.width, self.height), "format": "BGR888"},
-            controls={"FrameDurationLimits": (frame_duration_us, frame_duration_us)},
-        )
-        self._camera.configure(config)
-        self._camera.start()
+        try:
+            # Picamera2의 "RGB888"은 메모리상 B,G,R 순서로 저장되어 OpenCV(BGR)와 일치한다.
+            # ("BGR888"을 쓰면 numpy 배열이 RGB 순서가 되어 화면 색이 뒤바뀐다.)
+            config = self._camera.create_preview_configuration(
+                main={"size": (self.width, self.height), "format": "RGB888"},
+                controls={"FrameDurationLimits": (frame_duration_us, frame_duration_us)},
+            )
+            self._camera.configure(config)
+            self._camera.start()
+        except Exception:
+            self._camera.close()
+            raise
         time.sleep(0.5)
 
     def read(self):
