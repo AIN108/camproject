@@ -37,7 +37,6 @@ def main() -> None:
     cv2.setWindowProperty("Screen", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     showing_black = True
-    seoultech_position = 0
     face_detected = False
     last_detection_time = 0.0
 
@@ -55,29 +54,21 @@ def main() -> None:
                 face_detected = len(faces) > 0
                 last_detection_time = current_time
 
+            # 영상 파일은 한 번만 열고, 전환할 때 다시 열지 않는다.
+            # 홍보영상은 검은 화면을 보여 주는 동안 읽지 않으므로 같은 캡처가 멈춘 위치에서 이어서 재생된다.
             if face_detected and showing_black:
                 showing_black = False
-                seoultech_video.release()
-                seoultech_video = open_video(SEOULTECH_VIDEO)
-                seoultech_video.set(cv2.CAP_PROP_POS_FRAMES, seoultech_position)
             elif not face_detected and not showing_black:
                 showing_black = True
-                seoultech_position = int(seoultech_video.get(cv2.CAP_PROP_POS_FRAMES))
-                black_video.release()
-                black_video = open_video(BLACK_VIDEO)
+                black_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
             active_video = black_video if showing_black else seoultech_video
             ok, frame = active_video.read()
 
             if not ok or frame is None:
-                if showing_black:
-                    black_video.release()
-                    black_video = open_video(BLACK_VIDEO)
-                    ok, frame = black_video.read()
-                else:
-                    seoultech_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    seoultech_position = 0
-                    ok, frame = seoultech_video.read()
+                # 영상 끝: 처음으로 되감아 반복 재생
+                active_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ok, frame = active_video.read()
 
             if not ok or frame is None:
                 print("표시할 영상 프레임을 읽을 수 없습니다.")
