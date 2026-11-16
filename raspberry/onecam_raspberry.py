@@ -64,8 +64,17 @@ def main() -> int:
         raise RuntimeError("OpenCV Haar Cascade를 불러오지 못했습니다.")
 
     camera = open_camera(args.camera, args.camera_index, args.width, args.height, args.fps)
-    idle_video = open_video(args.idle_video)
-    active_video = open_video(args.active_video)
+    try:
+        idle_video = open_video(args.idle_video)
+    except Exception:
+        camera.close()
+        raise
+    try:
+        active_video = open_video(args.active_video)
+    except Exception:
+        idle_video.release()
+        camera.close()
+        raise
 
     window_name = "CamProject Raspberry"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
