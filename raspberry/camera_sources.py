@@ -60,12 +60,17 @@ class PiCamera:
 
         self._camera = Picamera2(self.index)
         frame_duration_us = max(1, round(1_000_000 / max(1, self.fps)))
-        config = self._camera.create_preview_configuration(
-            main={"size": (self.width, self.height), "format": "BGR888"},
-            controls={"FrameDurationLimits": (frame_duration_us, frame_duration_us)},
-        )
-        self._camera.configure(config)
-        self._camera.start()
+        try:
+            config = self._camera.create_preview_configuration(
+                main={"size": (self.width, self.height), "format": "BGR888"},
+                controls={"FrameDurationLimits": (frame_duration_us, frame_duration_us)},
+            )
+            self._camera.configure(config)
+            self._camera.start()
+        except Exception:
+            # 설정·시작에 실패하면 카메라를 닫아 다음 실행에서 "장치 사용 중"이 되지 않게 한다
+            self._camera.close()
+            raise
         time.sleep(0.5)
 
     def read(self):

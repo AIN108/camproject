@@ -105,3 +105,96 @@ def test_twocam_help_still_works_off_windows():
                             capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     assert "--detect-camera" in result.stdout
+
+
+# --- raspberry/: 시작 도중 실패하면 이미 연 장치를 해제한다 ----------------------------------------
+
+class FakeDevice:
+    def __init__(self, name, log):
+        self.name, self.log = name, log
+
+    def close(self):
+        self.log.append(f"close {self.name}")
+
+    def release(self):
+        self.log.append(f"release {self.name}")
+
+
+def load_raspberry(name, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "raspberry"))
+    return load(ROOT / "raspberry" / f"{name}.py", f"{name}_under_test")
+
+
+def test_onecam_raspberry_releases_camera_when_video_fails(monkeypatch):
+    module = load_raspberry("onecam_raspberry", monkeypatch)
+    log = []
+    monkeypatch.setattr(module, "open_camera", lambda *a: FakeDevice("camera", log))
+    opened = iter([FakeDevice("idle", log), RuntimeError("동영상 파일을 열 수 없습니다")])
+
+    def fake_open_video(path):
+        item = next(opened)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(module, "open_video", fake_open_video)
+    monkeypatch.setattr(sys, "argv", ["onecam_raspberry.py", "--camera", "usb"])
+    with pytest.raises(RuntimeError):
+        module.main()
+    assert sorted(log) == ["close camera", "release idle"]
+
+
+@pytest.mark.parametrize("fail_at,expected", [
+    ("cctv", ["close detector"]),
+    ("video", ["close cctv", "close detector"]),
+])
+def test_twocam_raspberry_releases_cameras_on_start_failure(monkeypatch, fail_at, expected):
+    module = load_raspberry("twocam_raspberry", monkeypatch)
+    log = []
+    cameras = iter(["detector", "cctv"])
+
+    def fake_open_camera(*args):
+        name = next(cameras)
+        if name == fail_at:
+            raise RuntimeError(f"{name} 카메라를 열 수 없습니다")
+        return FakeDevice(name, log)
+
+    def fake_open_video(path):
+        raise RuntimeError("동영상 파일을 열 수 없습니다")
+
+    monkeypatch.setattr(module, "open_camera", fake_open_camera)
+    monkeypatch.setattr(module, "open_video", fake_open_video)
+    monkeypatch.setattr(sys, "argv", ["twocam_raspberry.py"])
+    with pytest.raises(RuntimeError):
+        module.main()
+    assert sorted(log) == expected
+
+
+def test_picamera_closes_device_when_configure_fails(monkeypatch):
+    import types
+
+    log = []
+
+    class FakePicamera2:
+        def __init__(self, index):
+            log.append(f"open {index}")
+
+        def create_preview_configuration(self, **kwargs):
+            log.append(f"format {kwargs['main']['format']}")
+            return kwargs
+
+        def configure(self, config):
+            raise RuntimeError("카메라 설정 실패")
+
+        def close(self):
+            log.append("close")
+
+    monkeypatch.setitem(sys.modules, "picamera2", types.SimpleNamespace(Picamera2=FakePicamera2))
+    # dataclass가 모듈을 sys.modules에서 찾으므로 등록한 뒤 실행한다
+    spec = importlib.util.spec_from_file_location("camera_sources_under_test", ROOT / "raspberry" / "camera_sources.py")
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    with pytest.raises(RuntimeError):
+        module.PiCamera(index=0)
+    assert log[0] == "open 0" and log[-1] == "close"
