@@ -1,5 +1,6 @@
 from pathlib import Path
 import ctypes
+import sys
 import time
 
 import cv2
@@ -19,6 +20,13 @@ def open_video(path: Path) -> cv2.VideoCapture:
 
 
 def main() -> None:
+    # 화면 크기를 Windows API(ctypes.windll)로 구하므로 Windows 전용이다.
+    if sys.platform != "win32":
+        raise SystemExit(
+            "onecam.py는 Windows 전용입니다. Raspberry Pi·Linux에서는 "
+            "`python3 raspberry/onecam_raspberry.py --camera usb`를 사용하세요."
+        )
+
     face_cascade = cv2.CascadeClassifier(str(CASCADE_PATH))
     if face_cascade.empty():
         raise RuntimeError(f"Haar Cascade를 불러오지 못했습니다: {CASCADE_PATH}")
