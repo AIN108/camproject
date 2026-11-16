@@ -19,6 +19,41 @@ def open_video(path: Path) -> cv2.VideoCapture:
     return capture
 
 
+class VideoClock:
+    """영상 파일의 fps에 맞춰 재생 속도를 맞춘다.
+
+    루프가 영상보다 빠르면 waitKey로 기다리고, 느리면(웹캠 읽기·얼굴 검출이 오래 걸리면) 밀린 프레임을
+    grab()으로 건너뛰어 원래 속도를 유지한다. 영상이 바뀌거나 처음으로 되감기면 기준 시각을 다시 잡는다.
+    """
+
+    MAX_SKIP = 10  # 한 번에 건너뛸 최대 프레임 수
+
+    def __init__(self):
+        self.video = None
+        self.start_time = 0.0
+        self.start_pos = 0.0
+        self.last_pos = 0.0
+
+    def pause(self):
+        """영상을 잠시 보여 주지 않을 때 호출한다. 다시 재생하면 그 시점부터 기준을 잡는다."""
+        self.video = None
+
+    def wait_ms(self, video, now):
+        """방금 읽은 프레임을 화면에 둔 채 기다릴 시간(ms). 늦었으면 밀린 프레임을 건너뛴다."""
+        pos = video.get(cv2.CAP_PROP_POS_FRAMES)  # 다음에 읽을 프레임 번호
+        fps = video.get(cv2.CAP_PROP_FPS) or 30.0
+        if video is not self.video or pos < self.last_pos:
+            self.video, self.start_time, self.start_pos = video, now, pos
+        ahead = pos - (self.start_pos + (now - self.start_time) * fps)
+        if ahead < -1:
+            for _ in range(min(int(-ahead), self.MAX_SKIP)):
+                if not video.grab():
+                    break
+            pos = video.get(cv2.CAP_PROP_POS_FRAMES)
+        self.last_pos = pos
+        return max(1, int(ahead * 1000 / fps)) if ahead > 0 else 1
+
+
 def main() -> None:
     # 화면 크기를 Windows API(ctypes.windll)로 구하므로 Windows 전용이다.
     if sys.platform != "win32":
@@ -43,6 +78,7 @@ def main() -> None:
 
     cv2.namedWindow("Screen", cv2.WINDOW_GUI_EXPANDED)
     cv2.setWindowProperty("Screen", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    clock = VideoClock()
 
     showing_black = True
     face_detected = False
@@ -85,7 +121,7 @@ def main() -> None:
             frame = cv2.resize(frame, (screen_width, screen_height))
             cv2.imshow("Screen", frame)
 
-            key = cv2.waitKey(1) & 0xFF
+            key = cv2.waitKey(clock.wait_ms(active_video, time.time())) & 0xFF
             if key in (ord("q"), 27):
                 break
     finally:

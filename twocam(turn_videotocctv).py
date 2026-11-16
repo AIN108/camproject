@@ -35,6 +35,40 @@ def open_camera(index):
     return camera
 
 
+class VideoClock:
+    """영상 파일의 fps에 맞춰 재생 속도를 맞춘다 (onecam.py의 같은 이름 클래스와 같은 동작).
+
+    루프가 영상보다 빠르면 waitKey로 기다리고, 느리면 밀린 프레임을 grab()으로 건너뛴다.
+    CCTV 화면을 보여 주는 동안에는 pause()로 기준 시각을 버리고, 다시 재생할 때 새로 잡는다.
+    """
+
+    MAX_SKIP = 10  # 한 번에 건너뛸 최대 프레임 수
+
+    def __init__(self):
+        self.video = None
+        self.start_time = 0.0
+        self.start_pos = 0.0
+        self.last_pos = 0.0
+
+    def pause(self):
+        self.video = None
+
+    def wait_ms(self, video, now):
+        """방금 읽은 프레임을 화면에 둔 채 기다릴 시간(ms). 늦었으면 밀린 프레임을 건너뛴다."""
+        pos = video.get(cv2.CAP_PROP_POS_FRAMES)  # 다음에 읽을 프레임 번호
+        fps = video.get(cv2.CAP_PROP_FPS) or 30.0
+        if video is not self.video or pos < self.last_pos:
+            self.video, self.start_time, self.start_pos = video, now, pos
+        ahead = pos - (self.start_pos + (now - self.start_time) * fps)
+        if ahead < -1:
+            for _ in range(min(int(-ahead), self.MAX_SKIP)):
+                if not video.grab():
+                    break
+            pos = video.get(cv2.CAP_PROP_POS_FRAMES)
+        self.last_pos = pos
+        return max(1, int(ahead * 1000 / fps)) if ahead > 0 else 1
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="얼굴 감지 여부에 따라 홍보영상/CCTV 화면을 전환해 듀얼 모니터에 출력합니다."
@@ -68,6 +102,7 @@ def main():
 
     video_playing = False
     last_detected_time = 0.0
+    clock = VideoClock()
 
     try:
         while True:
@@ -96,6 +131,7 @@ def main():
                         print("홍보영상 프레임을 읽을 수 없습니다.")
                         break
             else:
+                clock.pause()
                 ok_cctv, display_frame = webcam_cctv.read()
                 if not ok_cctv or display_frame is None:
                     print("CCTV 카메라 프레임을 읽을 수 없습니다.")
@@ -107,7 +143,9 @@ def main():
             cv2.imshow(window_name1, left_half)
             cv2.imshow(window_name2, right_half)
 
-            key = cv2.waitKey(1) & 0xFF
+            # 홍보영상은 파일 fps에 맞춰 표시하고, CCTV 화면은 카메라 속도 그대로 표시한다
+            wait_ms = clock.wait_ms(video, time.time()) if video_playing else 1
+            key = cv2.waitKey(wait_ms) & 0xFF
             if key in (ord("q"), 27):
                 break
     finally:
