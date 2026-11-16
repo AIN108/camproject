@@ -1,5 +1,6 @@
 from pathlib import Path
 import argparse
+import sys
 import time
 
 import cv2
@@ -79,6 +80,14 @@ def main():
     parser.add_argument("--monitor-height", type=int, default=1920, help="모니터 한 대의 세로 픽셀")
     parser.add_argument("--hold-seconds", type=float, default=1.0, help="얼굴이 사라진 뒤 영상 유지 시간")
     args = parser.parse_args()
+
+    # 카메라를 DirectShow(cv2.CAP_DSHOW)로 열기 때문에 Windows 전용이다.
+    if sys.platform != "win32":
+        raise SystemExit(
+            "twocam(turn_videotocctv).py는 Windows 전용입니다(카메라를 DirectShow로 엽니다). "
+            "Raspberry Pi·Linux에서는 `python3 raspberry/twocam_raspberry.py`(카메라 2대) 또는 "
+            "`python3 raspberry/onecam_raspberry.py --camera usb`(카메라 1대)를 사용하세요."
+        )
 
     face_cascade = cv2.CascadeClassifier(str(CASCADE_PATH))
     if face_cascade.empty():
