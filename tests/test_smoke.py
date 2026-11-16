@@ -63,3 +63,45 @@ def test_raspberry_center_roi_is_clamped():
     frame = np.zeros((240, 320, 3), np.uint8)
     assert twocam.center_roi(frame, 480, 320).shape == (240, 320, 3)  # 프레임보다 크면 프레임 크기로
     assert twocam.center_roi(frame, 100, 50).shape == (50, 100, 3)
+
+
+class DeviceOpened(Exception):
+    """테스트용: 스크립트가 영상·카메라를 열려고 했음을 알린다."""
+
+
+def run_twocam_main(monkeypatch, platform):
+    twocam = load(ROOT / "twocam(turn_videotocctv).py", "twocam_guard")
+    opened = []
+
+    def fake_capture(*args):
+        opened.append(args)
+        raise DeviceOpened(args)
+
+    monkeypatch.setattr(twocam.cv2, "VideoCapture", fake_capture)
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(sys, "argv", ["twocam(turn_videotocctv).py"])
+    return twocam, opened
+
+
+def test_twocam_exits_with_guidance_before_opening_devices_off_windows(monkeypatch):
+    twocam, opened = run_twocam_main(monkeypatch, "linux")
+    with pytest.raises(SystemExit) as exc:
+        twocam.main()
+    message = str(exc.value.code)
+    assert "Windows 전용" in message
+    assert "raspberry/onecam_raspberry.py" in message
+    assert opened == []  # 영상·카메라를 열기 전에 안내하고 끝난다
+
+
+def test_twocam_guard_lets_windows_through(monkeypatch):
+    twocam, opened = run_twocam_main(monkeypatch, "win32")
+    with pytest.raises(DeviceOpened):
+        twocam.main()
+    assert opened  # Windows에서는 기존처럼 영상·카메라를 연다
+
+
+def test_twocam_help_still_works_off_windows():
+    result = subprocess.run([sys.executable, str(ROOT / "twocam(turn_videotocctv).py"), "--help"],
+                            capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert "--detect-camera" in result.stdout
