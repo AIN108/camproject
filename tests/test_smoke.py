@@ -198,3 +198,31 @@ def test_picamera_closes_device_when_configure_fails(monkeypatch):
     with pytest.raises(RuntimeError):
         module.PiCamera(index=0)
     assert log[0] == "open 0" and log[-1] == "close"
+
+
+def test_twocam_raspberry_validates_dual_output_before_opening_devices(monkeypatch):
+    module = load_raspberry("twocam_raspberry", monkeypatch)
+    opened = []
+    monkeypatch.setattr(module, "open_camera", lambda *a: opened.append(a) or FakeDevice("camera", []))
+    monkeypatch.setattr(module, "open_video", lambda path: opened.append(path) or FakeDevice("video", []))
+    monkeypatch.setattr(sys, "argv", ["twocam_raspberry.py", "--dual-output", "--monitor-width", "0"])
+    with pytest.raises(ValueError, match="monitor-width"):
+        module.main()
+    assert opened == []  # 잘못된 인자면 장치를 열지 않는다
+
+
+def test_twocam_raspberry_releases_devices_when_window_creation_fails(monkeypatch):
+    module = load_raspberry("twocam_raspberry", monkeypatch)
+    log = []
+    cameras = iter(["detector", "cctv"])
+    monkeypatch.setattr(module, "open_camera", lambda *a: FakeDevice(next(cameras), log))
+    monkeypatch.setattr(module, "open_video", lambda path: FakeDevice("video", log))
+
+    def no_display(*args):
+        raise cv2.error("디스플레이 없음 (테스트)")
+
+    monkeypatch.setattr(module.cv2, "namedWindow", no_display)
+    monkeypatch.setattr(sys, "argv", ["twocam_raspberry.py", "--dual-output"])
+    with pytest.raises(cv2.error):
+        module.main()
+    assert sorted(log) == ["close cctv", "close detector", "release video"]

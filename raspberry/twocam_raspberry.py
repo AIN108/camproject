@@ -89,6 +89,9 @@ def main() -> int:
         and args.detector_index == args.cctv_index
     ):
         raise ValueError("얼굴 검출용 카메라와 CCTV용 카메라는 서로 다른 장치를 지정하세요.")
+    # 인자 검증은 장치를 열기 전에 끝낸다 (열고 나서 실패하면 카메라가 해제되지 않음)
+    if args.dual_output and (args.monitor_width <= 0 or args.monitor_height <= 0):
+        raise ValueError("monitor-width와 monitor-height는 1보다 큰 값이어야 합니다.")
 
     face_cascade = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
@@ -113,24 +116,23 @@ def main() -> int:
         cctv_camera.close()
         raise
 
-    if args.dual_output:
-        if args.monitor_width <= 0 or args.monitor_height <= 0:
-            raise ValueError("monitor-width와 monitor-height는 1보다 큰 값이어야 합니다.")
-        for name in ("Monitor1", "Monitor2"):
-            cv2.namedWindow(name, cv2.WINDOW_NORMAL)
-            if not args.windowed:
-                cv2.setWindowProperty(name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-        cv2.moveWindow("Monitor1", 0, 0)
-        cv2.moveWindow("Monitor2", args.monitor_width, 0)
-    else:
-        cv2.namedWindow("Screen", cv2.WINDOW_NORMAL)
-        if not args.windowed:
-            cv2.setWindowProperty("Screen", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
     video_playing = False
     last_face_time = 0.0
 
     try:
+        # 창 생성도 정리 블록 안에서 한다 (디스플레이가 없어 실패해도 장치를 해제)
+        if args.dual_output:
+            for name in ("Monitor1", "Monitor2"):
+                cv2.namedWindow(name, cv2.WINDOW_NORMAL)
+                if not args.windowed:
+                    cv2.setWindowProperty(name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+            cv2.moveWindow("Monitor1", 0, 0)
+            cv2.moveWindow("Monitor2", args.monitor_width, 0)
+        else:
+            cv2.namedWindow("Screen", cv2.WINDOW_NORMAL)
+            if not args.windowed:
+                cv2.setWindowProperty("Screen", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
         while True:
             detector_frame = detector_camera.read()
             roi = center_roi(detector_frame, args.roi_width, args.roi_height)
