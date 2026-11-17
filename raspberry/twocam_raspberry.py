@@ -99,10 +99,19 @@ def main() -> int:
     detector_camera = open_camera(
         args.detector_source, args.detector_index, args.width, args.height, args.fps
     )
-    cctv_camera = open_camera(
-        args.cctv_source, args.cctv_index, args.width, args.height, args.fps
-    )
-    active_video = open_video(args.active_video)
+    try:
+        cctv_camera = open_camera(
+            args.cctv_source, args.cctv_index, args.width, args.height, args.fps
+        )
+    except Exception:
+        detector_camera.close()
+        raise
+    try:
+        active_video = open_video(args.active_video)
+    except Exception:
+        detector_camera.close()
+        cctv_camera.close()
+        raise
 
     if args.dual_output:
         if args.monitor_width <= 0 or args.monitor_height <= 0:
